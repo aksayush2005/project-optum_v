@@ -4,7 +4,16 @@
   "installCommand": "cd frontend && npm install",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/main.py": {
+      "runtime": "python3.12"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/main.py"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

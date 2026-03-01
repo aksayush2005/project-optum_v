@@ -91,6 +91,16 @@ def _ensure_initialized() -> None:
     )
 
 
+@app.middleware("http")
+async def strip_api_prefix(request, call_next):
+    path = request.scope.get("path", "")
+    if path == "/api":
+        request.scope["path"] = "/"
+    elif path.startswith("/api/"):
+        request.scope["path"] = path[4:] or "/"
+    return await call_next(request)
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
