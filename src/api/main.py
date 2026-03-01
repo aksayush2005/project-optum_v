@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Dict, Optional
 
 import pandas as pd
@@ -53,23 +54,41 @@ class WhatIfRequest(BaseModel):
 
 app = FastAPI(title="Golden Signature Optimization API", version="0.1.0")
 
-pipeline = FeaturePipeline()
-predictor = MultiTargetPredictor()
-runtime = RuntimeConfig()
-constraints = ConstraintConfig()
-registry = SignatureRegistry(runtime.signature_store_path)
-learner = ContinuousLearner(registry)
+pipeline = None
+predictor = None
+runtime = None
+constraints = None
+registry = None
+learner = None
+adaptive = None
+feature_columns = None
 
-_seed_df = build_synthetic_dataset(n_rows=600, machine_count=3)
-processed, artifacts = pipeline.fit_transform(_seed_df)
-predictor.fit(processed, artifacts.feature_columns)
-adaptive = AdaptiveOptimizer(
-    predictor=predictor,
-    registry=registry,
-    feature_cols=artifacts.feature_columns,
-    constraints=constraints,
-    runtime=runtime,
-)
+
+def _ensure_initialized() -> None:
+    global pipeline, predictor, runtime, constraints, registry, learner, adaptive, feature_columns
+    if adaptive is not None:
+        return
+
+    pipeline = FeaturePipeline()
+    predictor = MultiTargetPredictor()
+    runtime = RuntimeConfig(
+        signature_store_path=os.getenv("SIGNATURE_STORE_PATH", "/tmp/signature_store.json")
+    )
+    constraints = ConstraintConfig()
+    registry = SignatureRegistry(runtime.signature_store_path)
+    learner = ContinuousLearner(registry)
+
+    seed_df = build_synthetic_dataset(n_rows=600, machine_count=3)
+    processed, artifacts = pipeline.fit_transform(seed_df)
+    feature_columns = artifacts.feature_columns
+    predictor.fit(processed, artifacts.feature_columns)
+    adaptive = AdaptiveOptimizer(
+        predictor=predictor,
+        registry=registry,
+        feature_cols=artifacts.feature_columns,
+        constraints=constraints,
+        runtime=runtime,
+    )
 
 
 @app.get("/health")
@@ -79,14 +98,16 @@ def health() -> Dict[str, str]:
 
 @app.get("/signatures/active")
 def active_signatures(mode: Optional[str] = None):
+    _ensure_initialized()
     return [s.__dict__ for s in registry.list_active(mode=mode)]
 
 
 @app.post("/batches/compare")
 def batch_compare(req: BatchCompareRequest):
+    _ensure_initialized()
     frame = pd.DataFrame([req.row])
     frame = pipeline.transform(frame)
-    pred = predictor.predict_dict(frame[adaptive.feature_cols])
+    pred = predictor.predict_dict(frame[feature_columns])
     sigs = registry.list_active(mode=req.mode)
     if not sigs:
         return {"prediction": pred, "active_signature": None, "message": "No active signature"}
@@ -98,6 +119,7 @@ def batch_compare(req: BatchCompareRequest):
 
 @app.post("/optimize/recommend")
 def recommend(req: RecommendRequest):
+    _ensure_initialized()
     frame = pd.DataFrame([req.row])
     frame = pipeline.transform(frame)
 
@@ -119,6 +141,7 @@ def recommend(req: RecommendRequest):
 
 @app.post("/signatures/promote")
 def promote(req: PromoteRequest):
+    _ensure_initialized()
     candidate = learner.propose_signature(
         mode=req.mode,
         params=req.params,
@@ -133,6 +156,7 @@ def promote(req: PromoteRequest):
 
 @app.post("/constraints/update")
 def update_constraints(req: ConstraintUpdateRequest):
+    _ensure_initialized()
     constraints.emission_cap = req.emission_cap
     if req.min_quality is not None:
         constraints.min_quality = req.min_quality
@@ -143,6 +167,7 @@ def update_constraints(req: ConstraintUpdateRequest):
 
 @app.post("/simulate/what-if")
 def what_if(req: WhatIfRequest):
+    _ensure_initialized()
     report = run_validation_simulation(
         machine_count=req.machine_count,
         n_rows=req.batches,
@@ -155,4 +180,5 @@ def what_if(req: WhatIfRequest):
 
 @app.get("/explain/feature-importance")
 def feature_importance():
+    _ensure_initialized()
     return predictor.feature_importance_proxy()
