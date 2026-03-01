@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { simulateWhatIf, updateConstraints } from "../lib/api";
 
 function TargetConfigPage() {
   const [yieldPriority, setYieldPriority] = useState(65);
@@ -6,14 +7,50 @@ function TargetConfigPage() {
   const [emissionConstraint, setEmissionConstraint] = useState(130);
   const [regulatoryCap, setRegulatoryCap] = useState(150);
   const [feedback, setFeedback] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const handleSave = () => {
-    setFeedback("Targets saved for active shift configuration.");
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const response = await updateConstraints({
+        emission_cap: regulatoryCap,
+        min_quality: 70 + yieldPriority * 0.1,
+        min_yield: 70 + yieldPriority * 0.12
+      });
+      setFeedback(
+        `Targets saved. Emission cap ${response.emission_cap} kgCO2e, minimum yield ${Number(
+          response.min_yield
+        ).toFixed(1)}.`
+      );
+    } catch (e) {
+      setFeedback(`Failed to save targets. (${e.message})`);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleSimulate = () => {
-    const projected = (yieldPriority * 0.03 + energyReduction * 0.07).toFixed(2);
-    setFeedback(`Simulation complete. Estimated cost optimization impact: ${projected}%.`);
+  const handleSimulate = async () => {
+    setBusy(true);
+    try {
+      const response = await simulateWhatIf({
+        machine_count: 3,
+        batches: 240,
+        energy_price_low: 0.08,
+        energy_price_high: 0.2,
+        emission_cap: emissionConstraint
+      });
+      setFeedback(
+        `Simulation complete. Yield +${Number(response.yield_improvement_pct).toFixed(
+          2
+        )}% | Energy savings ${Number(response.energy_savings_kwh_per_batch).toFixed(
+          2
+        )} kWh/batch | ROI $${Math.round(Number(response.annual_roi_usd)).toLocaleString()}.`
+      );
+    } catch (e) {
+      setFeedback(`Simulation failed. (${e.message})`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -66,10 +103,10 @@ function TargetConfigPage() {
           </label>
         </div>
         <div className="actions">
-          <button className="btn btn--primary" type="button" onClick={handleSave}>
-            Save Targets
+          <button className="btn btn--primary" type="button" onClick={handleSave} disabled={busy}>
+            {busy ? "Working..." : "Save Targets"}
           </button>
-          <button className="btn" type="button" onClick={handleSimulate}>
+          <button className="btn" type="button" onClick={handleSimulate} disabled={busy}>
             Simulate Impact
           </button>
         </div>

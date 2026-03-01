@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -8,9 +9,42 @@ import {
   ResponsiveContainer
 } from "recharts";
 import { energySavingsTrend, historyRows } from "../data/dummyData";
+import { simulateWhatIf } from "../lib/api";
 
 function HistoricalPage() {
-  const totalRoi = historyRows.reduce((sum, r) => sum + r.roi, 0);
+  const [roiSummary, setRoiSummary] = useState(historyRows.reduce((sum, r) => sum + r.roi, 0));
+  const [trend, setTrend] = useState(energySavingsTrend);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    simulateWhatIf({
+      machine_count: 3,
+      batches: 260,
+      energy_price_low: 0.08,
+      energy_price_high: 0.2,
+      emission_cap: 150
+    })
+      .then((response) => {
+        if (!active) return;
+        setRoiSummary(Math.round(Number(response.annual_roi_usd)));
+        const baseline = Number(response.energy_savings_kwh_per_batch) || 1;
+        setTrend(
+          energySavingsTrend.map((item, idx) => ({
+            ...item,
+            savings: Number((baseline * (0.7 + idx * 0.08)).toFixed(2))
+          }))
+        );
+      })
+      .catch((e) => {
+        if (!active) return;
+        setNote(`Live analytics unavailable. Showing fallback data. (${e.message})`);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const exportCsv = () => {
     const header = ["Batch", "Machine", "Yield", "Quality", "Energy", "Emission", "ROI"];
     const body = historyRows.map((row) =>
@@ -69,7 +103,8 @@ function HistoricalPage() {
         <div className="panel__header">
           <h2>ROI Summary</h2>
         </div>
-        <p className="big-number">${totalRoi.toLocaleString()}</p>
+        {note ? <p className="action-note">{note}</p> : null}
+        <p className="big-number">${roiSummary.toLocaleString()}</p>
         <p className="subtle">Estimated cumulative impact over selected batches.</p>
       </section>
 
@@ -79,7 +114,7 @@ function HistoricalPage() {
         </div>
         <div className="chart-wrap">
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={energySavingsTrend}>
+            <BarChart data={trend}>
               <CartesianGrid stroke="#d7dce2" strokeDasharray="3 3" />
               <XAxis dataKey="week" />
               <YAxis />

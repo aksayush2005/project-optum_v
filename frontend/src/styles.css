@@ -267,6 +267,10 @@ p {
   background: var(--alert);
 }
 
+.status-indicator--ok {
+  background: var(--ok);
+}
+
 .status-title {
   font-size: 0.9rem;
   font-weight: 600;
@@ -318,6 +322,11 @@ p {
 
 .btn:hover {
   background: #f3f6f9;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .btn--primary {
