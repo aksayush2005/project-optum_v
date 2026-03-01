@@ -5,6 +5,16 @@ function TargetConfigPage() {
   const [energyReduction, setEnergyReduction] = useState(22);
   const [emissionConstraint, setEmissionConstraint] = useState(130);
   const [regulatoryCap, setRegulatoryCap] = useState(150);
+  const [feedback, setFeedback] = useState("");
+
+  const handleSave = () => {
+    setFeedback("Targets saved for active shift configuration.");
+  };
+
+  const handleSimulate = () => {
+    const projected = (yieldPriority * 0.03 + energyReduction * 0.07).toFixed(2);
+    setFeedback(`Simulation complete. Estimated cost optimization impact: ${projected}%.`);
+  };
 
   return (
     <div className="page-grid">
@@ -56,13 +66,14 @@ function TargetConfigPage() {
           </label>
         </div>
         <div className="actions">
-          <button className="btn btn--primary" type="button">
+          <button className="btn btn--primary" type="button" onClick={handleSave}>
             Save Targets
           </button>
-          <button className="btn" type="button">
+          <button className="btn" type="button" onClick={handleSimulate}>
             Simulate Impact
           </button>
         </div>
+        {feedback ? <p className="action-note">{feedback}</p> : null}
       </section>
 
       <section className="panel panel--span-4">

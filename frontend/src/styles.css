@@ -411,6 +411,16 @@ p {
   height: 280px;
 }
 
+.action-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #c7d6e0;
+  border-radius: 4px;
+  background: #f3f7fa;
+  color: #26495f;
+  font-size: 0.84rem;
+}
+
 @media (max-width: 1180px) {
   .panel--span-8,
   .panel--span-6,

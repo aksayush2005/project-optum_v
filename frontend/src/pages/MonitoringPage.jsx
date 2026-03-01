@@ -1,6 +1,30 @@
+import { useMemo, useState } from "react";
 import { liveParameters, recommendations } from "../data/dummyData";
 
 function MonitoringPage() {
+  const [rows, setRows] = useState(recommendations);
+  const [message, setMessage] = useState("");
+
+  const hasPending = useMemo(() => rows.some((r) => !r.decision), [rows]);
+
+  const handleDecision = (parameter, decision) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.parameter === parameter
+          ? {
+              ...row,
+              decision
+            }
+          : row
+      )
+    );
+    setMessage(
+      decision === "Applied"
+        ? `${parameter} recommendation applied and queued for execution.`
+        : `${parameter} recommendation overridden by operator.`
+    );
+  };
+
   return (
     <div className="page-grid">
       <section className="panel panel--span-6">
@@ -46,6 +70,7 @@ function MonitoringPage() {
         <div className="panel__header">
           <h2>Recommended Parameter Adjustments</h2>
         </div>
+        {message ? <p className="action-note">{message}</p> : null}
         <table className="table">
           <thead>
             <tr>
@@ -53,11 +78,12 @@ function MonitoringPage() {
               <th>Current</th>
               <th>Recommended</th>
               <th>Confidence</th>
+              <th>Decision</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {recommendations.map((row) => (
+            {rows.map((row) => (
               <tr key={row.parameter}>
                 <td>{row.parameter}</td>
                 <td>
@@ -67,11 +93,20 @@ function MonitoringPage() {
                   {row.recommended} {row.unit}
                 </td>
                 <td>{row.confidence}</td>
+                <td>{row.decision || "Pending"}</td>
                 <td>
-                  <button className="btn btn--primary" type="button">
+                  <button
+                    className="btn btn--primary"
+                    type="button"
+                    onClick={() => handleDecision(row.parameter, "Applied")}
+                  >
                     Apply
                   </button>
-                  <button className="btn btn--text" type="button">
+                  <button
+                    className="btn btn--text"
+                    type="button"
+                    onClick={() => handleDecision(row.parameter, "Overridden")}
+                  >
                     Override
                   </button>
                 </td>
@@ -79,6 +114,7 @@ function MonitoringPage() {
             ))}
           </tbody>
         </table>
+        {!hasPending ? <p className="subtle">All recommendations reviewed for this batch.</p> : null}
       </section>
     </div>
   );

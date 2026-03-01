@@ -1,6 +1,24 @@
+import { useMemo, useState } from "react";
 import { proposedUpdates, signatures } from "../data/dummyData";
 
 function GoldenSignaturePage() {
+  const [updates, setUpdates] = useState(
+    proposedUpdates.map((item) => ({ ...item, decision: "Pending" }))
+  );
+  const [lastAction, setLastAction] = useState("");
+
+  const pendingCount = useMemo(
+    () => updates.filter((item) => item.decision === "Pending").length,
+    [updates]
+  );
+
+  const handleUpdateDecision = (id, decision) => {
+    setUpdates((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, decision } : item))
+    );
+    setLastAction(`${id} marked as ${decision.toLowerCase()}.`);
+  };
+
   return (
     <div className="page-grid">
       <section className="panel panel--span-12">
@@ -45,8 +63,10 @@ function GoldenSignaturePage() {
         <div className="panel__header">
           <h2>Proposed Benchmark Updates</h2>
         </div>
+        <p className="subtle">Pending reviews: {pendingCount}</p>
+        {lastAction ? <p className="action-note">{lastAction}</p> : null}
         <div className="action-list">
-          {proposedUpdates.map((item) => (
+          {updates.map((item) => (
             <div className="action-row" key={item.id}>
               <div className="action-row__meta">
                 <strong>{item.id}</strong>
@@ -54,12 +74,21 @@ function GoldenSignaturePage() {
                 <span>Confidence: {(item.confidence * 100).toFixed(0)}%</span>
                 <span>Yield +{item.expectedYieldGain}%</span>
                 <span>Energy -{item.expectedEnergyReduction} kWh</span>
+                <span>Decision: {item.decision}</span>
               </div>
               <div className="action-row__buttons">
-                <button className="btn btn--primary" type="button">
+                <button
+                  className="btn btn--primary"
+                  type="button"
+                  onClick={() => handleUpdateDecision(item.id, "Accepted")}
+                >
                   Accept
                 </button>
-                <button className="btn" type="button">
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => handleUpdateDecision(item.id, "Rejected")}
+                >
                   Reject
                 </button>
               </div>

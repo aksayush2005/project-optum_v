@@ -11,13 +11,29 @@ import { energySavingsTrend, historyRows } from "../data/dummyData";
 
 function HistoricalPage() {
   const totalRoi = historyRows.reduce((sum, r) => sum + r.roi, 0);
+  const exportCsv = () => {
+    const header = ["Batch", "Machine", "Yield", "Quality", "Energy", "Emission", "ROI"];
+    const body = historyRows.map((row) =>
+      [row.batch, row.machine, row.yield, row.quality, row.energy, row.emission, row.roi].join(",")
+    );
+    const csv = [header.join(","), ...body].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "batch_performance.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="page-grid">
       <section className="panel panel--span-8">
         <div className="panel__header">
           <h2>Batch Performance History</h2>
-          <button className="btn" type="button">
+          <button className="btn" type="button" onClick={exportCsv}>
             Export CSV
           </button>
         </div>
