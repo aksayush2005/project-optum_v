@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  LineChart, Line, CartesianGrid, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 import { motion } from "framer-motion";
 import { simulateWhatIf, updateConstraints } from "../lib/api";
 
@@ -7,6 +11,10 @@ const fadeUp = (delay = 0) => ({
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.4, delay, ease: "easeOut" },
 });
+
+const TIME_POINTS = ["T+1h", "T+2h", "T+4h", "T+8h", "T+12h", "T+24h"];
+const BASE_ENERGY = 438;
+const BASE_EMISSION = 123;
 
 function RangeField({ label, value, min, max, unit, onChange }) {
   const pct = Math.round(((value - min) / (max - min)) * 100);
@@ -22,6 +30,18 @@ function RangeField({ label, value, min, max, unit, onChange }) {
   );
 }
 
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: "#161f33", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "10px 14px", fontSize: "0.82rem" }}>
+      <p style={{ color: "#f5c842", fontWeight: 600, marginBottom: 6 }}>{label}</p>
+      {payload.map((p) => (
+        <p key={p.dataKey} style={{ color: p.color, margin: "2px 0" }}>{p.name}: <strong>{p.value}</strong></p>
+      ))}
+    </div>
+  );
+};
+
 function TargetConfigPage() {
   const [yieldPriority, setYieldPriority] = useState(65);
   const [energyReduction, setEnergyReduction] = useState(22);
@@ -29,6 +49,20 @@ function TargetConfigPage() {
   const [regulatoryCap, setRegulatoryCap] = useState(150);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Live What-If preview — recomputed whenever any slider changes
+  const whatIfData = useMemo(() => {
+    const energyFactor = 1 - (energyReduction / 100) * 0.6;
+    const emissionFactor = emissionConstraint / 150;
+    return TIME_POINTS.map((t, i) => {
+      const decay = 1 - i * 0.03;
+      return {
+        t,
+        energy: Number((BASE_ENERGY * energyFactor * decay).toFixed(1)),
+        emission: Number((BASE_EMISSION * emissionFactor * decay).toFixed(1)),
+      };
+    });
+  }, [energyReduction, emissionConstraint]);
 
   const handleSave = async () => {
     setBusy(true);
@@ -57,7 +91,7 @@ function TargetConfigPage() {
         emission_cap: emissionConstraint,
       });
       setFeedback(
-        `⟳ Simulation complete — Yield +${Number(response.yield_improvement_pct).toFixed(2)}% | Energy savings ${Number(response.energy_savings_kwh_per_batch).toFixed(2)} kWh/batch | ROI $${Math.round(Number(response.annual_roi_usd)).toLocaleString()}`
+        `⟳ Simulation — Yield +${Number(response.yield_improvement_pct).toFixed(2)}% | Energy savings ${Number(response.energy_savings_kwh_per_batch).toFixed(2)} kWh/batch | ROI $${Math.round(Number(response.annual_roi_usd)).toLocaleString()}`
       );
     } catch (e) {
       setFeedback(`✗ Simulation failed. (${e.message})`);
@@ -79,12 +113,24 @@ function TargetConfigPage() {
           <RangeField label="Soft Emission Constraint" value={emissionConstraint} min={80} max={180} unit=" kgCO2e" onChange={setEmissionConstraint} />
           <label className="field">
             <span>Hard Regulatory Cap <strong style={{ color: "#f5c842" }}>{regulatoryCap} kgCO2e</strong></span>
-            <input
-              type="number"
-              value={regulatoryCap}
-              onChange={(e) => setRegulatoryCap(Number(e.target.value))}
-            />
+            <input type="number" value={regulatoryCap} onChange={(e) => setRegulatoryCap(Number(e.target.value))} />
           </label>
+        </div>
+
+        {/* What-If Preview Chart */}
+        <div className="whatif-chart-wrap">
+          <p className="whatif-chart-label">⟳ Live What-If Projection</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={whatIfData}>
+              <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
+              <XAxis dataKey="t" tick={{ fill: "#6b7897", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#6b7897", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: "0.78rem", color: "#6b7897" }} />
+              <Line type="monotone" dataKey="energy" stroke="#f5c842" strokeWidth={2} dot={false} name="Energy (kWh)" />
+              <Line type="monotone" dataKey="emission" stroke="#10b981" strokeWidth={2} dot={false} name="Emission (kg)" />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         <div className="actions">
@@ -92,7 +138,7 @@ function TargetConfigPage() {
             {busy ? "Working..." : "✓ Save Targets"}
           </button>
           <button className="btn" type="button" onClick={handleSimulate} disabled={busy}>
-            ⟳ Simulate Impact
+            ⟳ Run Simulation
           </button>
         </div>
 
