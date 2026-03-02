@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { liveParameters, recommendations } from "../data/dummyData";
 import { defaultMode, liveBatchRow } from "../data/livePayload";
 import { getRecommendation } from "../lib/api";
+
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.4, delay, ease: "easeOut" },
+});
 
 function MonitoringPage() {
   const [rows, setRows] = useState(recommendations);
@@ -14,14 +21,7 @@ function MonitoringPage() {
 
   const handleDecision = (parameter, decision) => {
     setRows((prev) =>
-      prev.map((row) =>
-        row.parameter === parameter
-          ? {
-              ...row,
-              decision
-            }
-          : row
-      )
+      prev.map((row) => row.parameter === parameter ? { ...row, decision } : row)
     );
     setMessage(
       decision === "Applied"
@@ -38,74 +38,59 @@ function MonitoringPage() {
         row: liveBatchRow,
         mode: defaultMode,
         energy_price: 0.12,
-        carbon_price: 0.04
+        carbon_price: 0.04,
       });
-
       const newRows = [
         { parameter: "Mixing Speed", key: "mixing_speed", unit: "rpm" },
-        { parameter: "Temperature", key: "temperature", unit: "C" },
-        { parameter: "Pressure", key: "pressure", unit: "bar" }
+        { parameter: "Temperature", key: "temperature", unit: "°C" },
+        { parameter: "Pressure", key: "pressure", unit: "bar" },
       ].map((item) => ({
         parameter: item.parameter,
         current: Number(liveBatchRow[item.key]).toFixed(2),
         recommended: Number(rec.parameters?.[item.key] ?? liveBatchRow[item.key]).toFixed(2),
         unit: item.unit,
-        confidence: `${Math.max(
-          70,
-          Math.min(99, Math.round((1 - Number(rec.drift_score ?? 0) / 10) * 100))
-        )}%`
+        confidence: `${Math.max(70, Math.min(99, Math.round((1 - Number(rec.drift_score ?? 0) / 10) * 100)))}%`,
       }));
-
       setRows(newRows);
       setParams([
-        { key: "Temperature", value: `${Number(liveBatchRow.temperature).toFixed(1)} C`, status: "Within" },
+        { key: "Temperature", value: `${Number(liveBatchRow.temperature).toFixed(1)} °C`, status: "Within" },
         { key: "Pressure", value: `${Number(liveBatchRow.pressure).toFixed(1)} bar`, status: "Within" },
         {
-          key: "Mixing Speed",
-          value: `${Number(liveBatchRow.mixing_speed).toFixed(0)} rpm`,
-          status:
-            Number(rec.parameters?.mixing_speed ?? liveBatchRow.mixing_speed) === Number(liveBatchRow.mixing_speed)
-              ? "Within"
-              : "Deviation"
+          key: "Mixing Speed", value: `${Number(liveBatchRow.mixing_speed).toFixed(0)} rpm`,
+          status: Number(rec.parameters?.mixing_speed ?? liveBatchRow.mixing_speed) === Number(liveBatchRow.mixing_speed) ? "Within" : "Deviation"
         },
-        { key: "Batch Size", value: `${Number(liveBatchRow.batch_size).toFixed(0)} kg`, status: "Within" }
+        { key: "Batch Size", value: `${Number(liveBatchRow.batch_size).toFixed(0)} kg`, status: "Within" },
       ]);
       setMessage("Live recommendation pulled from optimization service.");
     } catch (e) {
-      setError(`Unable to load live recommendation. Showing fallback data. (${e.message})`);
+      setError(`Unable to load live recommendation — showing fallback. (${e.message})`);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchRecommendation();
-  }, []);
+  useEffect(() => { fetchRecommendation(); }, []);
 
   return (
     <div className="page-grid">
-      <section className="panel panel--span-6">
+      {/* Live Params */}
+      <motion.section className="panel panel--span-6" {...fadeUp(0)}>
         <div className="panel__header">
-          <h2>Live Batch Parameters</h2>
-          <button className="btn" type="button" onClick={fetchRecommendation}>
-            Refresh
+          <h2><span className="panel__icon">◉</span>Live Batch Parameters</h2>
+          <button className="btn" type="button" onClick={fetchRecommendation} disabled={loading}>
+            {loading ? "⟳ Refreshing..." : "↻ Refresh"}
           </button>
         </div>
-        {loading ? <p className="subtle">Loading live recommendation...</p> : null}
-        {error ? <p className="action-note">{error}</p> : null}
+        {error && <p className="action-note">{error}</p>}
         <table className="table">
           <thead>
-            <tr>
-              <th>Parameter</th>
-              <th>Value</th>
-              <th>Status</th>
-            </tr>
+            <tr><th>Parameter</th><th>Value</th><th>Status</th></tr>
           </thead>
           <tbody>
             {params.map((item) => (
               <tr key={item.key}>
-                <td>{item.key}</td>
-                <td>{item.value}</td>
+                <td style={{ fontWeight: 500 }}>{item.key}</td>
+                <td style={{ color: "#f5c842", fontWeight: 600 }}>{item.value}</td>
                 <td>
                   <span className={item.status === "Within" ? "badge badge--ok" : "badge badge--alert"}>
                     {item.status}
@@ -115,24 +100,27 @@ function MonitoringPage() {
             ))}
           </tbody>
         </table>
-      </section>
+      </motion.section>
 
-      <section className="panel panel--span-6">
+      {/* Deviation Alert */}
+      <motion.section className="panel panel--span-6" {...fadeUp(0.1)}>
         <div className="panel__header">
-          <h2>Deviation Alerts</h2>
+          <h2><span className="panel__icon">⚠</span>Deviation Alerts</h2>
         </div>
         <div className="alert-card">
-          <h3>Mixing Speed High</h3>
-          <p>Observed 338 rpm, threshold upper bound 330 rpm under current material profile.</p>
-          <p className="alert-card__time">First detected: 09:31 | Open for: 11 min</p>
+          <h3>⚡ Mixing Speed High</h3>
+          <p>Observed 338 rpm — threshold upper bound 330 rpm under current material profile.</p>
+          <p className="alert-card__time">First detected: 09:31 &nbsp;·&nbsp; Open for: 11 min</p>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="panel panel--span-12">
+      {/* Recommendations Table */}
+      <motion.section className="panel panel--span-12" {...fadeUp(0.2)}>
         <div className="panel__header">
-          <h2>Recommended Parameter Adjustments</h2>
+          <h2><span className="panel__icon">⊞</span>Recommended Parameter Adjustments</h2>
+          {!hasPending && <span className="badge badge--ok">All Reviewed</span>}
         </div>
-        {message ? <p className="action-note">{message}</p> : null}
+        {message && <p className="action-note">{message}</p>}
         <table className="table">
           <thead>
             <tr>
@@ -147,28 +135,30 @@ function MonitoringPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.parameter}>
-                <td>{row.parameter}</td>
+                <td style={{ fontWeight: 500 }}>{row.parameter}</td>
+                <td style={{ color: "var(--text-muted)" }}>{row.current} {row.unit}</td>
+                <td style={{ color: "#f5c842", fontWeight: 600 }}>{row.recommended} {row.unit}</td>
                 <td>
-                  {row.current} {row.unit}
+                  <span style={{
+                    color: parseInt(row.confidence) >= 85 ? "var(--ok)" : "var(--gold)",
+                    fontWeight: 600
+                  }}>
+                    {row.confidence}
+                  </span>
                 </td>
                 <td>
-                  {row.recommended} {row.unit}
+                  <span style={{
+                    color: row.decision === "Applied" ? "var(--ok)" : row.decision === "Overridden" ? "var(--alert)" : "var(--text-muted)",
+                    fontWeight: 500
+                  }}>
+                    {row.decision || "Pending"}
+                  </span>
                 </td>
-                <td>{row.confidence}</td>
-                <td>{row.decision || "Pending"}</td>
-                <td>
-                  <button
-                    className="btn btn--primary"
-                    type="button"
-                    onClick={() => handleDecision(row.parameter, "Applied")}
-                  >
+                <td style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn--primary" type="button" onClick={() => handleDecision(row.parameter, "Applied")}>
                     Apply
                   </button>
-                  <button
-                    className="btn btn--text"
-                    type="button"
-                    onClick={() => handleDecision(row.parameter, "Overridden")}
-                  >
+                  <button className="btn btn--text" type="button" onClick={() => handleDecision(row.parameter, "Overridden")}>
                     Override
                   </button>
                 </td>
@@ -176,8 +166,7 @@ function MonitoringPage() {
             ))}
           </tbody>
         </table>
-        {!hasPending ? <p className="subtle">All recommendations reviewed for this batch.</p> : null}
-      </section>
+      </motion.section>
     </div>
   );
 }
